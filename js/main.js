@@ -12,6 +12,8 @@ import './ui/bourse.js';
 import './ui/import.js';
 import './ui/settings.js';
 import './ui/credits.js';
+import './ui/classer.js';
+import './ui/prevision.js';
 
 const t = localPref('theme');
 if (t && t !== 'auto') document.documentElement.setAttribute('data-theme', t);

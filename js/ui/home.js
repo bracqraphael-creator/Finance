@@ -8,6 +8,8 @@ import { catById } from '../core/model.js';
 import { emptyState } from '../core/model.js';
 import { txRow } from './transactions.js';
 import { debtAnalysis, healthScore } from '../core/debt.js';
+import { forecast, importDue, goalStatus } from '../core/planning.js';
+import { reviewCount } from '../core/triage.js';
 
 export function demoBanner() {
   if (!app.state.settings.demo) return '';
@@ -90,7 +92,9 @@ registerView('accueil', () => {
           <span><span class="dot" style="background:var(--brass)"></span>Jour ${mm.dayOfMonth}/${mm.daysInMonth}</span>
         </div>
       </div>`}
+      ${importReminder()}
       ${al ? html`<a class="alert ${al.level >= 3 ? 'l3' : ''}" href="${al.link}"><div><div class="t">${al.title}</div><div class="b">${al.body}</div></div></a>` : ''}
+      ${shortcuts()}
 
       <h2 class="section">En un coup d'œil</h2>
       <div class="kpis">
@@ -119,17 +123,39 @@ registerView('accueil', () => {
 
       <h2 class="section">Dernières opérations <a href="#/operations">Tout voir</a></h2>
       <div class="group">${recent.map(t => txRow(t, { showDate: true }))}</div>
-      ${importAge()}
+      ${lastImport()}
     </main>`,
   };
 });
 
-function importAge() {
+function lastImport() {
   const last = app.state.imports.at(-1);
   if (!last || app.state.settings.demo) return '';
-  const days = Math.floor((Date.now() - Date.parse(last.at)) / 864e5);
-  if (days < 7) return html`<p class="hint" style="text-align:center;margin-top:18px">Dernier import le ${dateShort(last.at.slice(0, 10))}</p>`;
-  return html`<a class="alert" href="#/import" style="margin-top:22px"><div><div class="t">Dernier import il y a ${days} jours</div><div class="b">Importez vos nouveaux relevés pour garder vos chiffres à jour.</div></div></a>`;
+  return html`<p class="hint" style="text-align:center;margin-top:18px">Dernier import le ${dateShort(last.at.slice(0, 10))}</p>`;
+}
+
+/** Rappel d'import : le mois a changé depuis le dernier import (jour réglable dans les réglages). */
+function importReminder() {
+  const s = app.state;
+  if (s.settings.importReminder === false) return '';
+  const d = importDue(s, app.today);
+  if (!d?.due) return '';
+  return html`<a class="alert" href="#/import"><div><div class="t">C'est le moment d'importer vos relevés</div><div class="b">Dernier import il y a ${d.days} jour${d.days > 1 ? 's' : ''}. Exportez ceux du mois écoulé depuis vos banques.</div></div></a>`;
+}
+
+/** Raccourcis : opérations à classer, fin de mois prévue, objectifs. */
+function shortcuts() {
+  const s = app.state;
+  const n = reviewCount(s);
+  const f = forecast(s, app.today);
+  const goals = s.goals || [];
+  const g = goals.map(x => goalStatus(s, x, app.today));
+  const avg = g.length ? g.reduce((t, x) => t + x.pct, 0) / g.length : null;
+  return html`<div class="shortcuts">
+    <a href="#/classer" class="${n ? 'hot' : ''}"><span class="t">À classer</span><span class="v">${n || '✓'}</span><span class="s">${n ? 'opération' + (n > 1 ? 's' : '') : 'tout est classé'}</span></a>
+    <a href="#/prevision"><span class="t">Fin de mois</span><span class="v amount ${f && !f.insufficient && f.end < 0 ? 'neg' : ''}">${f && !f.insufficient ? euro(f.end, { round: true }) : '—'}</span><span class="s">${f && !f.insufficient ? 'solde prévu' : 'échéancier'}</span></a>
+    <a href="#/objectifs"><span class="t">Objectifs</span><span class="v">${avg == null ? '+' : pct(avg)}</span><span class="s">${avg == null ? 'en créer un' : `${goals.length} en cours`}</span></a>
+  </div>`;
 }
 
 function capitalizeDate(d) {

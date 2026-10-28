@@ -75,6 +75,7 @@ registerView('operations', () => {
         ${chip('', 'Tout')}${chip('depense', 'Dépenses')}${chip('revenu', 'Revenus')}
         ${toCheck ? chip('verifier', `À classer (${toCheck})`) : ''}
       </div>`}
+      ${!qcat && f.kind === 'verifier' && toCheck ? html`<a class="btn brass block" href="#/classer" style="margin-bottom:12px">Classement express : une opération à la fois</a>` : ''}
       <div id="ops-list">${txList(list, { limit: f.limit })}</div>
     </main>`,
   };

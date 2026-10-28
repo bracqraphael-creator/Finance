@@ -5,6 +5,7 @@ import { euro, pct, dateShort } from './format.js';
 import { sparkline, lineChart } from './charts.js';
 import { indicators, volatilityLabel } from '../core/indicators.js';
 import { portfolio } from '../core/portfolio.js';
+import { translate, cachedTranslation, translatedPageUrl, translationQuotaReached } from '../core/translate.js';
 import { REFERENCES } from '../core/debt.js';
 import {
   SOURCES, cached, isFresh, safely, loadCrypto, loadTrending, loadGlobal, loadFearGreed, loadMacro,
@@ -193,25 +194,69 @@ export function newsView(header) {
   const key = 'news:' + tab;
   if (hasKey) setTimeout(() => refresh([key]));
   const items = cached(s, key)?.data || [];
+  if (s.settings.translateNews !== false && items.length) setTimeout(() => translateNews(items));
   const chip = (k, l) => html`<button class="chip" data-act="news-tab" data-t="${k}" aria-pressed="${tab === k}">${l}</button>`;
   const pf = portfolio(s, app.today);
   const frLinks = [...pf.open.map(p => ({ name: p.name })), { name: 'Bourse de Paris CAC 40' }, { name: 'bitcoin' }];
   return html`${header}
     ${hasKey ? html`<div class="chips" role="group" aria-label="Actualités">${hasStocks ? chip('holdings', 'Mes actions') : ''}${chip('general', 'Marchés')}${chip('crypto', 'Crypto')}</div>
-      ${items.length ? html`<div class="news">${items.map(n => html`<a class="news-item" href="${n.url}" target="_blank" rel="noopener noreferrer">
-          <span class="meta">${n.source} · ${ago(n.at)}${n.holding ? html` · <b>${n.holding}</b>` : ''}</span>
-          <span class="h">${n.headline}</span>
-          ${n.summary ? html`<span class="sum">${n.summary}</span>` : ''}
-        </a>`)}</div>`
+      ${items.length ? html`<div class="news">${items.map((n, i) => newsItem(n, i))}</div>`
         : html`<div class="note">${app.ui.mkBusy ? 'Chargement des actualités…' : tab === 'holdings' ? 'Aucune actualité récente trouvée pour vos titres. Les petites valeurs et les ETF européens sont peu couverts.' : 'Aucune actualité pour le moment.'}</div>`}
       ${errLine(key)}
       ${items.length ? sourceLine(['finnhub'], cached(s, key)?.at) : ''}
-      <p class="hint">Actualités en anglais, fournies par Finnhub. Seuls les codes de vos titres sont envoyés.</p>`
+      <p class="hint">${s.settings.translateNews !== false
+        ? html`Actualités fournies en anglais par Finnhub, traduites automatiquement en français${translationQuotaReached(s) ? ' (limite de traduction gratuite atteinte pour aujourd\'hui : les suivantes restent en anglais jusqu\'à demain)' : ''}. « Lire en français » ouvre l'article traduit par Google Traduction.`
+        : 'Actualités en anglais, fournies par Finnhub.'} Seuls les codes de vos titres sont envoyés.</p>`
     : html`<div class="note"><strong>Activez les actualités en 2 minutes.</strong> Créez une clé gratuite sur <a href="https://finnhub.io/register" target="_blank" rel="noopener noreferrer">finnhub.io</a> (adresse e-mail seulement), puis collez-la dans les réglages. Vous aurez les actualités des marchés, des cryptomonnaies et de vos titres, et des données sur les entreprises.
         <div style="margin-top:12px"><a class="btn brass" href="#/reglages">Ajouter ma clé</a></div></div>`}
     <h2 class="section">Actualités en français</h2>
     <div class="group">${frLinks.map(l => html`<a class="row plain" href="${moreLinks({ name: l.name }).at(-1).url}" target="_blank" rel="noopener noreferrer"><span class="main"><span class="title">${l.name}</span><span class="sub">Google Actualités</span></span>${icon('chev', 'chev')}</a>`)}</div>
     ${DISCLAIMER}`;
+}
+
+// Titres traduits automatiquement pour toute la liste, résumés pour les 8 premières (le reste à la demande),
+// pour rester dans la limite gratuite d'environ 5 000 caractères par jour.
+const AUTO_SUMMARIES = 8;
+let translating = false;
+async function translateNews(items) {
+  const s = app.state;
+  if (translating || !s || translationQuotaReached(s)) return;
+  const todo = [];
+  items.forEach((n, i) => {
+    if (!cachedTranslation(s, n.headline)) todo.push(n.headline);
+    if (n.summary && (i < AUTO_SUMMARIES || app.ui.trOpen?.[n.url]) && !cachedTranslation(s, n.summary)) todo.push(n.summary);
+  });
+  if (!todo.length) return;
+  translating = true;
+  let changed = false;
+  try {
+    for (const text of todo.slice(0, 40)) {
+      try { await translate(s, text); changed = true; }
+      catch (e) { if (e.message === 'quota' || e.message === 'offline') break; }
+    }
+  } finally {
+    translating = false;
+    if (changed && app.state === s) update(() => {});
+  }
+}
+
+function newsItem(n, i) {
+  const s = app.state;
+  const on = s.settings.translateNews !== false;
+  const h = on ? cachedTranslation(s, n.headline) : null;
+  const sum = on && n.summary ? cachedTranslation(s, n.summary) : null;
+  const canTranslateSummary = on && n.summary && !sum && i >= AUTO_SUMMARIES && !translationQuotaReached(s);
+  return html`<article class="news-item">
+    <span class="meta">${n.source} · ${ago(n.at)}${n.holding ? html` · <b>${n.holding}</b>` : ''}</span>
+    <a class="h" href="${on ? translatedPageUrl(n.url) : n.url}" target="_blank" rel="noopener noreferrer">${h || n.headline}</a>
+    ${n.summary ? html`<span class="sum">${sum || n.summary}</span>` : ''}
+    <span class="links">
+      ${on ? html`<a href="${translatedPageUrl(n.url)}" target="_blank" rel="noopener noreferrer">Lire en français</a>` : ''}
+      <a href="${n.url}" target="_blank" rel="noopener noreferrer">${on ? 'Article original' : 'Lire l\'article'}</a>
+      ${canTranslateSummary ? html`<button class="link inline" data-act="news-translate" data-url="${n.url}">Traduire le résumé</button>` : ''}
+      ${h ? html`<span class="tr-badge">traduit</span>` : ''}
+    </span>
+  </article>`;
 }
 
 // ---------- Fiche d'une cryptomonnaie ----------
@@ -251,6 +296,15 @@ const cryptoHelp = { help: k => html`<button class="help" data-act="help" data-k
 
 registerActions({
   'news-tab': el => { app.ui.newsTab = el.dataset.t; render(); },
+  'news-translate': async el => {
+    (app.ui.trOpen ||= {})[el.dataset.url] = true;
+    el.textContent = 'Traduction…';
+    const s = app.state;
+    const n = Object.values(s.market).flatMap(c => (Array.isArray(c?.data) ? c.data : [])).find(x => x.url === el.dataset.url);
+    if (!n) return;
+    try { await translate(s, n.summary); update(() => {}); }
+    catch (e) { toast(e.message === 'quota' ? 'Limite de traduction gratuite atteinte pour aujourd\'hui.' : 'Traduction impossible pour le moment.'); render(); }
+  },
   'mk-retry': el => { const c = app.state.market[el.dataset.key]; if (c) delete c.errorAt; refresh([el.dataset.key], true); },
   'mk-refresh': () => refresh(app.ui.bourseTab === 'actus' ? ['news:' + (app.ui.newsTab || 'holdings')] : ['macro', 'fng', 'global', 'crypto', 'trending'], true),
   'coin-follow': el => {

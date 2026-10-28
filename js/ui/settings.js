@@ -5,13 +5,14 @@ import { euro, dateShort } from './format.js';
 import { changePassword, newRecovery, exportVault, wipe, enableBiometric, disableBiometric, biometricEnabled, biometricPossible, unlockWithPassword } from '../core/vault.js';
 import { PROVIDERS, fetchQuote } from '../core/prices.js';
 import { catById, deleteRule, recategorizeAll, accountById } from '../core/model.js';
+import { reminderICS } from '../core/planning.js';
 
 const titleCase = t => String(t).toLowerCase().replace(/(^|[\s\-.&/])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
 
-async function saveFile(name, text, mime) {
+export async function saveFile(name, text, mime, { share = true } = {}) {
   const blob = new Blob([text], { type: mime });
   const file = new File([blob], name, { type: mime });
-  if (navigator.canShare?.({ files: [file] })) {
+  if (share && navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file], title: name }); return; } catch (e) { if (e.name === 'AbortError') return; }
   }
   const a = document.createElement('a');
@@ -57,6 +58,17 @@ registerView('reglages', () => {
           <input class="input" style="width:110px;min-height:40px;text-align:right" inputmode="decimal" value="${String((st.lowBalance ?? 10000) / 100)}" data-change="set-low"></label>
       </div>
 
+      <h2 class="section">Rappel d'import</h2>
+      <div class="group">
+        <label class="row plain"><span class="main"><span class="title">Rappel dans Pécule</span><span class="sub" style="white-space:normal">Un bandeau sur l'accueil quand le mois a changé depuis votre dernier import</span></span>
+          <span class="switch"><input type="checkbox" data-change="set-reminder" ${st.importReminder !== false ? 'checked' : ''}><span></span></span></label>
+        <label class="row plain"><span class="main"><span class="title">Jour du rappel</span><span class="sub">Quand vos relevés du mois précédent sont disponibles</span></span>
+          <select class="input" style="width:auto;min-height:40px;padding:6px 10px" data-change="set-reminder-day">
+            ${[1, 2, 3, 5, 7, 10, 15].map(d => html`<option value="${d}" ${(st.reminderDay || 3) === d ? 'selected' : ''}>le ${d === 1 ? '1er' : d}</option>`)}
+          </select></label>
+        <button class="row plain" data-act="reminder-ics"><span class="main"><span class="title">Ajouter à mon calendrier</span><span class="sub" style="white-space:normal">Un rappel chaque mois, même quand Pécule est fermé (fichier .ics pour iPhone, Google Agenda, Outlook)</span></span>${icon('chev', 'chev')}</button>
+      </div>
+
       <h2 class="section">Cours de bourse</h2>
       <div class="group" style="padding:4px 16px 14px">
         <label class="field"><span>Fournisseur</span><select class="input" data-change="set-provider">
@@ -76,6 +88,8 @@ registerView('reglages', () => {
             <input class="input" value="${st.finnhubKey || ''}" autocomplete="off" spellcheck="false" data-change="set-finnhub" placeholder="Collez votre clé"></label>
           <p class="hint">Créez-la sur <a href="https://finnhub.io/register" target="_blank" rel="noopener noreferrer">finnhub.io/register</a> : votre clé s'affiche ensuite sur le tableau de bord. Seuls les codes de vos titres sont envoyés.</p>
         </div>
+        <label class="row plain"><span class="main"><span class="title">Traduire les actualités en français</span><span class="sub" style="white-space:normal">Titres et résumés traduits par MyMemory (gratuit, environ 5 000 caractères par jour). Seul le texte public des actualités est envoyé.</span></span>
+          <span class="switch"><input type="checkbox" data-change="set-translate" ${st.translateNews !== false ? 'checked' : ''}><span></span></span></label>
       </div>
 
       <h2 class="section">Règles de classement</h2>
@@ -95,7 +109,7 @@ registerView('reglages', () => {
       <h2 class="section">Zone sensible</h2>
       <button class="btn danger block" data-act="wipe">Effacer toutes les données de ce téléphone</button>
 
-      <p class="hint" style="text-align:center;margin-top:28px">Pécule · version 1.0 · fonctionne hors ligne<br>Aucun compte, aucun serveur, aucune publicité.</p>
+      <p class="hint" style="text-align:center;margin-top:28px">Pécule · version 1.5 · fonctionne hors ligne<br>Aucun compte, aucun serveur, aucune publicité.</p>
     </main>`,
   };
 });
@@ -119,6 +133,7 @@ registerActions({
   'set-discreet': el => update(s => { s.settings.discreet = el.checked; }),
   'set-theme': el => { localPref('theme', el.dataset.v); update(s => { s.settings.theme = el.dataset.v; }); },
   'set-low': el => { const v = parseFloat(el.value.replace(',', '.')); if (!Number.isNaN(v)) update(s => { s.settings.lowBalance = Math.round(v * 100); }); },
+  'set-translate': el => update(s => { s.settings.translateNews = el.checked; }),
   'set-public': el => update(s => { s.settings.publicMarketData = el.checked; }),
   'set-finnhub': el => update(s => {
     s.settings.finnhubKey = el.value.trim();
@@ -166,6 +181,12 @@ registerActions({
     openSheet(html`<h3>Votre nouveau code de secours</h3><div class="recovery num">${code}</div>
       <p class="hint">Notez-le maintenant : il ne sera plus affiché. L'ancien code ne fonctionne plus.</p>
       <button class="btn brass block" style="margin-top:14px" data-act="sheet-close">Je l'ai noté</button>`);
+  },
+  'set-reminder': el => update(s => { s.settings.importReminder = el.checked; }),
+  'set-reminder-day': el => update(s => { s.settings.reminderDay = Number(el.value); }),
+  'reminder-ics': async () => {
+    await saveFile('pecule-rappel-import.ics', reminderICS(app.state.settings.reminderDay || 3), 'text/calendar', { share: false });
+    toast('Ouvrez le fichier pour ajouter le rappel à votre calendrier');
   },
   'rule-del': el => update(s => { deleteRule(s, el.dataset.id); recategorizeAll(s); }),
   backup: async () => {

@@ -21,6 +21,7 @@ export function emptyState() {
     loans: [],
     debt: {},
     market: {},
+    goals: [],
     settings: {
       discreet: false,
       provider: 'none',
@@ -44,6 +45,7 @@ export function migrateState(state) {
   state.loans ||= [];
   state.debt ||= {};
   state.market ||= {};
+  state.goals ||= [];
   // Version 2 : noms de bénéficiaires mieux nettoyés (« CB MAGASIN FACT 090926 » → « Magasin »)
   if ((state.version || 1) < 2) {
     for (const t of state.transactions) if (!t.meta?.trType || /^CARD/.test(t.meta.trType)) t.payee = payeeDisplay(t.label);

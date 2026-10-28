@@ -55,12 +55,16 @@ export function buildDemoState(today = new Date()) {
     if (k === 3) add(D(20), -between(250, 320), 'CB AIR FRANCE');
     if (k % 2 === 1) add(D(24), -between(11, 13), 'CB PATHE CINEMAS');
     add(D(25), -between(20, 50), 'CB DECATHLON');
+    // Quelques opérations que Pécule ne sait pas classer seul (pour le classement express)
+    if (k <= 2) add(D(13), -between(8, 25), 'CB LA FABRIQUE 75011');
+    if (k === 1) add(D(23), between(30, 60), 'VIR INST M PIERRE MARTIN');
+    if (k <= 1) add(D(7), -between(40, 60), 'CB SC ATELIER NOMADE');
 
     addTr(D(3), 30000, 'Virement reçu Jean Dupont', 'CUSTOMER_INBOUND');
     const etfPrice = priceAt(ETF.isin, D(4));
     const sh = Math.round((150 / etfPrice) * 1e6) / 1e6;
     addTr(D(4), -15000, `Plan d'investissement ${ETF.name}`, 'SAVINGS_PLAN', { cat: 'TRADING' });
-    trade({ ...ETF, date: D(4), kind: 'buy', shares: sh, price: etfPrice, amount: -15000, gross: -15000 });
+    trade({ ...ETF, date: D(4), kind: 'buy', shares: sh, price: etfPrice, amount: -15000, gross: -15000, source: 'SAVINGS_PLAN' });
     addTr(D(1), between(1.8, 3.2), 'Intérêts', 'INTEREST_PAYMENT');
     if (k === 6 || k === 3) {
       const p = priceAt(AAPL.isin, D(7));

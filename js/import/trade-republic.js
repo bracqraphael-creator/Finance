@@ -117,6 +117,8 @@ export function parseTradeRepublic(text) {
         tax,
         currency: get(r, 'original_currency') || get(r, 'currency') || 'EUR',
         txid: txid ? `tr-${txid}` : null,
+        wrapper: /PEA/i.test(get(r, 'account_type')) ? 'PEA' : null,
+        source: type || null, // SAVINGS_PLAN = exécution d'un plan d'investissement
       });
     } else if (total === 0 && !isin) {
       ignored++;

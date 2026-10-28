@@ -9,6 +9,7 @@ import { sparkline, lineChart } from './charts.js';
 import { demoBanner } from './home.js';
 import { marketsView, newsView, indicatorsBlock, linksBlock, metricsBlock, HELP_MK, finnhubSymbol } from './marches.js';
 import { cryptoQuote } from '../core/market.js';
+import { syntheseView } from './synthese.js';
 
 const CLASS_COLORS = ['var(--brass)', 'var(--ink)', 'var(--pos)', '#5B6FA8', '#C8743A', 'var(--ink-3)'];
 
@@ -47,14 +48,15 @@ registerView('bourse', () => {
   const hasCrypto = pf.open.some(p => String(p.assetClass).toUpperCase() === 'CRYPTO') && s.settings.publicMarketData;
   const canFetch = canFetchQuotes(s) || hasCrypto;
   const lastFetch = Object.values(s.prices).map(p => p.fetchedAt).filter(Boolean).sort().at(-1);
-  const busy = tab === 'portefeuille' ? app.ui.fetching : app.ui.mkBusy;
+  const busy = tab === 'portefeuille' || tab === 'synthese' ? app.ui.fetching : app.ui.mkBusy;
   const tb = (k, l) => html`<button data-act="bourse-tab" data-t="${k}" aria-pressed="${tab === k}">${l}</button>`;
-  const refreshBtn = tab === 'portefeuille'
+  const refreshBtn = tab === 'portefeuille' || tab === 'synthese'
     ? (canFetch ? html`<button class="iconbtn" data-act="prices-refresh" aria-label="Actualiser les cours" ${busy ? 'disabled' : ''}>${busy ? html`<span class="spinner"></span>` : icon('refresh')}</button>` : '')
     : html`<button class="iconbtn" data-act="mk-refresh" aria-label="Actualiser" ${busy ? 'disabled' : ''}>${busy ? html`<span class="spinner"></span>` : icon('refresh')}</button>`;
   const header = html`${demoBanner()}
       <div class="topbar"><h1>Bourse</h1>${refreshBtn}</div>
-      <div class="seg" role="tablist" aria-label="Bourse" style="margin-bottom:16px">${tb('portefeuille', 'Portefeuille')}${tb('marches', 'Marchés')}${tb('actus', 'Actualités')}</div>`;
+      <div class="seg" role="tablist" aria-label="Bourse" style="margin-bottom:16px">${tb('portefeuille', 'Portefeuille')}${tb('synthese', 'Synthèse')}${tb('marches', 'Marchés')}${tb('actus', 'Actus')}</div>`;
+  if (tab === 'synthese') return { title: 'Synthèse', tabs: true, html: html`<main class="screen">${syntheseView(header)}</main>` };
   if (tab === 'marches') return { title: 'Marchés', tabs: true, html: html`<main class="screen">${marketsView(header, help, watchlistHtml(canFetch))}</main>` };
   if (tab === 'actus') return { title: 'Actualités', tabs: true, html: html`<main class="screen">${newsView(header)}</main>` };
   return {

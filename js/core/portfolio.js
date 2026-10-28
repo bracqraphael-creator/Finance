@@ -7,6 +7,7 @@ export function positions(state) {
   const trades = [...state.trades].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : ORDER[a.kind] - ORDER[b.kind]));
   const map = new Map();
   const knownBy = new Map(); // part des parts vendues dont le prix d'achat est connu
+  const realizedBy = new Map(); // plus-value de chaque vente (partie connue)
   for (const t of trades) {
     if (!map.has(t.isin)) {
       const sec = state.securities[t.isin] || {};
@@ -29,7 +30,11 @@ export function positions(state) {
       // on ne compte que la partie connue dans la plus-value (sinon tout le prix de vente passerait pour un gain)
       const known = asked > 0 ? sold / asked : 1;
       if (known < 0.999) p.incomplete = true;
-      if (t.kind === 'sell') p.realized += Math.round(t.amount * known) - costOut;
+      if (t.kind === 'sell') {
+        const r = Math.round(t.amount * known) - costOut;
+        p.realized += r;
+        realizedBy.set(t, { realized: r, cost: costOut, known });
+      }
       knownBy.set(t, known);
       if (t.price) p.lastTradePrice = t.price;
       if (p.shares < 1e-9) { p.shares = 0; p.cost = 0; }
@@ -55,6 +60,7 @@ export function positions(state) {
   }
   out.sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
   out.known = knownBy;
+  out.realizedBy = realizedBy;
   return out;
 }
 
