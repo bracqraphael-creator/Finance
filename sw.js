@@ -1,18 +1,19 @@
 // Service worker : fonctionnement hors ligne et réception des fichiers partagés (Android).
-const VERSION = 'pecule-v1.0.0';
+const VERSION = 'pecule-v1.3.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css', './fonts/bricolage.woff2',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
   './js/main.js', './js/app.js',
   './js/lib/text.js', './js/lib/parse.js',
-  './js/import/index.js', './js/import/ofx.js', './js/import/qif.js', './js/import/csv-bank.js', './js/import/trade-republic.js',
-  './js/core/model.js', './js/core/categories.js', './js/core/analytics.js', './js/core/portfolio.js', './js/core/prices.js', './js/core/vault.js', './js/core/demo.js',
+  './js/import/index.js', './js/import/ofx.js', './js/import/qif.js', './js/import/csv-bank.js', './js/import/trade-republic.js', './js/import/ce-pdf.js', './js/import/tr-pdf.js', './js/import/pdf.js',
+  './js/core/model.js', './js/core/categories.js', './js/core/analytics.js', './js/core/portfolio.js', './js/core/prices.js', './js/core/vault.js', './js/core/demo.js', './js/core/loans.js', './js/core/debt.js', './js/core/indicators.js', './js/core/market.js',
   './js/ui/dom.js', './js/ui/format.js', './js/ui/charts.js', './js/ui/lock.js', './js/ui/onboarding.js', './js/ui/home.js',
-  './js/ui/transactions.js', './js/ui/accounts.js', './js/ui/budget.js', './js/ui/analyse.js', './js/ui/bourse.js', './js/ui/import.js', './js/ui/settings.js',
+  './js/ui/transactions.js', './js/ui/accounts.js', './js/ui/budget.js', './js/ui/analyse.js', './js/ui/bourse.js', './js/ui/import.js', './js/ui/settings.js', './js/ui/credits.js', './js/ui/marches.js',
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' : ignore le cache HTTP pour ne pas mélanger ancienne et nouvelle version
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {

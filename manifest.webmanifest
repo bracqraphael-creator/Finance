@@ -22,11 +22,11 @@
     "enctype": "multipart/form-data",
     "params": {
       "files": [
-        { "name": "files", "accept": [".csv", ".ofx", ".qfx", ".qif", ".txt", "text/csv", "text/comma-separated-values", "text/plain", "application/x-ofx", "application/octet-stream"] }
+        { "name": "files", "accept": [".pdf", "application/pdf", ".csv", ".ofx", ".qfx", ".qif", ".txt", "text/csv", "text/comma-separated-values", "text/plain", "application/x-ofx", "application/octet-stream"] }
       ]
     }
   },
   "file_handlers": [
-    { "action": "./#/import", "accept": { "text/csv": [".csv"], "application/x-ofx": [".ofx", ".qfx"], "application/qif": [".qif"] } }
+    { "action": "./#/import", "accept": { "application/pdf": [".pdf"], "text/csv": [".csv"], "application/x-ofx": [".ofx", ".qfx"], "application/qif": [".qif"] } }
   ]
 }
